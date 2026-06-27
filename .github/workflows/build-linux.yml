@@ -1,0 +1,65 @@
+name: Linux Build
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  VSCODE_ARCH: x64
+  VSCODE_QUALITY: oss
+  NODE_OPTIONS: --max-old-space-size=8192
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install system packages
+        run: |
+          set -e
+          # Start X server
+          ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
+          ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y pkg-config \
+            xvfb \
+            libgtk-3-0 \
+            libxkbfile-dev \
+            libkrb5-dev \
+            libgbm1 \
+            rpm \
+            bubblewrap \
+            socat
+          sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
+          sudo chmod +x /etc/init.d/xvfb
+          sudo update-rc.d xvfb defaults
+          sudo service xvfb start
+
+      - name: Install dependencies
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+        run: npm ci
+
+      - name: Compile
+        run: npm run gulp core-ci
+
+      - name: Compile Copilot
+        run: npm run gulp compile-copilot-extension-build
+
+      - name: Build Linux archive
+        run: |
+          npm run gulp vscode-linux-x64-min-ci
+          tar -czf .build/arab-code-linux-x64.tar.gz ../VSCode-linux-x64
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-packages
+          path: .build/arab-code-linux-x64.tar.gz
