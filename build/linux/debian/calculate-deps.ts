@@ -64,8 +64,17 @@ function calculatePackageDeps(binaryPath: string, arch: DebianArchString, chromi
 	cmd.push(`-L${vscodeSysroot}/debian/libxkbfile1/DEBIAN/shlibs`);
 	cmd.push('-O', '-e', path.resolve(binaryPath));
 
-	const dpkgShlibdepsResult = spawnSync('perl', cmd, { cwd: chromiumSysroot });
-	if (dpkgShlibdepsResult.status !== 0) {
+	console.log(cmd.join(' '));
+
+	const dpkgShlibdepsResult = spawnSync(
+		'perl',
+		[...cmd, '-v'],
+		{
+			cwd: chromiumSysroot
+		}
+	);
+
+	console.log(dpkgShlibdepsResult.stderr.toString()); if (dpkgShlibdepsResult.status !== 0) {
 		throw new Error(`dpkg-shlibdeps failed with exit code ${dpkgShlibdepsResult.status}. stderr:\n${dpkgShlibdepsResult.stderr} `);
 	}
 
